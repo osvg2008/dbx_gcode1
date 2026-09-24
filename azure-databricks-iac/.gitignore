@@ -1,0 +1,55 @@
+# Bicep
+*.tmp
+.bicep/
+*.json.backup
+main.json
+
+# Azure
+.azure/
+
+# Parameters with secrets
+**/parameters/*secret*.json
+**/parameters/*prod*.json
+
+# Terraform (if used alongside)
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfplan
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+logs/
+reports/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Node modules (if using any JS tools)
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+.venv/
+
+# Test artifacts
+test-results/
+coverage/

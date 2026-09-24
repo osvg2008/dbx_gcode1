@@ -1,0 +1,32 @@
+{
+  "analyzers": {
+    "core": {
+      "verbose": false,
+      "enabled": true,
+      "rules": {
+        "no-unused-params": {
+          "level": "warning"
+        },
+        "no-unused-vars": {
+          "level": "warning"
+        },
+        "prefer-interpolation": {
+          "level": "warning"
+        },
+        "secure-parameter-default": {
+          "level": "error"
+        },
+        "simplify-interpolation": {
+          "level": "warning"
+        }
+      }
+    }
+  },
+  "experimentalFeaturesEnabled": {
+    "symbolicNameCodegen": false,
+    "extensibility": true,
+    "resourceTypedParamsAndOutputs": true,
+    "sourceMapping": true,
+    "paramsFiles": true
+  }
+}

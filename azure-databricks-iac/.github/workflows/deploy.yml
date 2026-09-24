@@ -1,0 +1,129 @@
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'bicep/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+env:
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
+
+jobs:
+  deploy:
+    name: Deploy to Azure
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bicep
+        run: |
+          curl -Lo bicep https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64
+          chmod +x ./bicep
+          sudo mv ./bicep /usr/local/bin/bicep
+          bicep --version
+
+      - name: Install Azure CLI Bicep extension
+        run: |
+          az extension add --name bicep
+          az bicep install
+          az bicep version
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set Azure Subscription
+        run: |
+          az account set --subscription ${{ env.AZURE_SUBSCRIPTION_ID }}
+          az account show
+
+      - name: Build Bicep
+        run: |
+          echo "🔨 Building Bicep templates..."
+          bicep build bicep/main.bicep --outfile main.json
+
+      - name: What-If Analysis
+        run: |
+          echo "🔍 Running What-If analysis..."
+          az deployment sub what-if \
+            --location eastus \
+            --template-file bicep/main.bicep \
+            --parameters bicep/parameters/parameters.${{ env.ENVIRONMENT }}.json \
+            --name whatif-${{ github.run_number }}
+
+      - name: Deploy Infrastructure
+        id: deploy
+        run: |
+          echo "🚀 Deploying infrastructure..."
+          DEPLOYMENT_OUTPUT=$(az deployment sub create \
+            --location eastus \
+            --template-file bicep/main.bicep \
+            --parameters bicep/parameters/parameters.${{ env.ENVIRONMENT }}.json \
+            --name deploy-${{ github.run_number }}-${{ env.ENVIRONMENT }} \
+            --output json)
+          
+          echo "✅ Deployment completed"
+          echo "$DEPLOYMENT_OUTPUT" | jq .
+          
+          # Extract outputs
+          WORKSPACE_URL=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.properties.outputs.databricksWorkspaceUrl.value')
+          RESOURCE_GROUP=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.properties.outputs.resourceGroupName.value')
+          
+          echo "workspace_url=$WORKSPACE_URL" >> $GITHUB_OUTPUT
+          echo "resource_group=$RESOURCE_GROUP" >> $GITHUB_OUTPUT
+
+      - name: Post-deployment validation
+        run: |
+          echo "✔️ Validating deployed resources..."
+          az databricks workspace show \
+            --resource-group ${{ steps.deploy.outputs.resource_group }} \
+            --name dbw-*
+
+      - name: Create deployment summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## 🎉 Deployment Summary
+          
+          **Environment:** \`${{ env.ENVIRONMENT }}\`
+          **Deployment Name:** \`deploy-${{ github.run_number }}-${{ env.ENVIRONMENT }}\`
+          **Resource Group:** \`${{ steps.deploy.outputs.resource_group }}\`
+          
+          ### Deployed Resources
+          - 🏢 **Databricks Workspace:** [${{ steps.deploy.outputs.workspace_url }}](${{ steps.deploy.outputs.workspace_url }})
+          - 📦 **Storage Account:** Provisioned
+          - 🌐 **Virtual Network:** Configured with VNet injection
+          - 📊 **Monitoring:** Log Analytics and App Insights
+          
+          ### Next Steps
+          1. Configure Databricks workspace settings
+          2. Set up Unity Catalog (if using premium tier)
+          3. Create compute clusters
+          4. Configure security and access controls
+          EOF
+
+      - name: Upload deployment artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-outputs-${{ env.ENVIRONMENT }}
+          path: |
+            main.json
+            bicep/parameters/parameters.${{ env.ENVIRONMENT }}.json

@@ -1,0 +1,44 @@
+name: Destroy Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to destroy'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+      confirm:
+        description: 'Type DELETE to confirm'
+        required: true
+
+env:
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  destroy:
+    name: Destroy Infrastructure
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    if: github.event.inputs.confirm == 'DELETE'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Delete Resource Group
+        run: |
+          RG_NAME="rg-dbxproj-${{ github.event.inputs.environment }}-eastus"
+          echo "🗑️ Deleting resource group: $RG_NAME"
+          az group delete --name $RG_NAME --yes --no-wait
+          
+      - name: Summary
+        run: |
+          echo "⚠️ Infrastructure destruction initiated for ${{ github.event.inputs.environment }}"
