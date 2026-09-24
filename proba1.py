@@ -9,3 +9,7 @@ print(f"j = {j}")
 
 # Или просто напишите имя переменной:
 j
+
+# Цикл от 1 до 5
+for index in range(1, 6):
+    print(index)
